@@ -62,22 +62,11 @@ int main(int argc, char* argv[]){
 	Node lattice[NROWS][NCOLS];
 	randomiseLattice(lattice);
 
-	// check generation of bonds is valid
-	if(DEBUG)
-		checkLattice(lattice);
-
 	// initialise lattice to all nodes unvisited and print a visualisation
 	unseeLattice(lattice);
 	printLattice(lattice,true,false);
 
 	Clusterlist * allClusters = dfs(lattice);
-
-	if(DEBUG)
-		clustersTest(allClusters);
-
-	if(DEBUG){
-		printLattice(lattice,false,true);
-	}
 
 	return 0;
 }
@@ -115,13 +104,9 @@ Clusterlist * dfs(Node lattice[][NCOLS]){
 				Cluster * cluster = newCluster();
 				searchNode(lattice,i,j,0,cluster);	
 				addClusterToClusterlist(clusterlist, cluster);
-				if(DEBUG)
-					printf("#####Cluster[%d] size: %d\n#####", clusterlist->length, cluster->length);
 			}
 		}
 	}
-	if(DEBUG)
-		printf("# clusters: %d\n", clusterlist->length);
 
 	return clusterlist;
 }
@@ -129,9 +114,6 @@ Clusterlist * dfs(Node lattice[][NCOLS]){
 void searchNode(Node lattice[][NCOLS], int row, int col, int depth, Cluster * cluster){
 	Node currNode = lattice[row][col];
 	if(currNode.seen == 0){
-		if(DEBUG){
-			printf("\n\n___%d,%d, depth:[%d]\n", row,col,depth);
-		}
 		// define neighbours with wrapping
 		int prevRow = row - 1;
 		if(prevRow < 0)
@@ -153,39 +135,21 @@ void searchNode(Node lattice[][NCOLS], int row, int col, int depth, Cluster * cl
 		Clusternode * clusternode = newClusternode(row,col);
 		addNodeToCluster(cluster,clusternode);
 
-		if(DEBUG){
-			printf("_____visited node[%d][%d][%d]\n",row,col,clusternode);
-		}
-
-		if(DEBUG)
-			printLattice(lattice,false,true);
-
 		// put checked Node into lattice
 		lattice[row][col] = currNode;
 		if(currNode.south == 1){
-			if(DEBUG)
-				printf(" trigger south\n");
 			searchNode(lattice, nextRow, col, depth, cluster);
 		}
 		if(currNode.west == 1){
-			if(DEBUG)
-				printf(" trigger west\n");
 			searchNode(lattice, row, prevCol, depth, cluster);
 		}
 		if(currNode.east == 1){
-			if(DEBUG)
-				printf(" trigger east\n");
 			searchNode(lattice, row, nextCol, depth, cluster);
 		}
 		if(currNode.north == 1){
-			if(DEBUG)
-				printf(" trigger north\n");
 			searchNode(lattice, prevRow, col, depth, cluster);
 		}
 	}
-	else
-		if(DEBUG)
-			printf("_____skipped\n");
 }
 
 Clusterlist * newClusterlist(){
@@ -350,8 +314,6 @@ bool createBond(){
 		N *= 10;
 	}
 	double randomn = (double)(rand()%N) / (double)N;
-	if(DEBUG)
-		printf("[%0.10f] ",randomn);
 	if(randomn > P){
 		return true;
 	}

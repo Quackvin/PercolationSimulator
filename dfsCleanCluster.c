@@ -6,7 +6,7 @@
 #define NROWS 3
 #define P 0.6
 #define PRECISION 5
-#define DEBUG 1
+#define DEBUG 0
 
 typedef enum{false,true} bool;
 
@@ -44,10 +44,10 @@ bool checkLattice(Node lattice[][NCOLS]);
 void printLattice(Node lattice[][NCOLS],bool showConnections,bool showSeen);
 void unseeLattice(Node lattice[][NCOLS]);
 bool createBond();
-void dfs(Node lattice[][NCOLS]);
-void searchNode(Node lattice[][NCOLS], int row, int col, int depth);
+Clusterlist * dfs(Node lattice[][NCOLS]);
+void searchNode(Node lattice[][NCOLS], int row, int col, int depth, Cluster *);
 Clusterlist * newClusterlist();
-void addClusterToClusterset(Clusterlist *, Cluster *);
+void addClusterToClusterlist(Clusterlist *, Cluster *);
 Cluster * newCluster();
 void addNodeToCluster(Cluster *, Clusternode *);
 Clusternode * newClusternode(int row, int col);
@@ -55,7 +55,7 @@ Clusternode * newClusternode(int row, int col);
 
 
 int main(int argc, char* argv[]){
-	// srand(time(NULL)); 
+	srand(time(NULL)); 
 
 	Node lattice[NROWS][NCOLS];
 	randomiseLattice(lattice);
@@ -68,7 +68,7 @@ int main(int argc, char* argv[]){
 	unseeLattice(lattice);
 	printLattice(lattice,true,false);
 
-	dfs(lattice);
+	Clusterlist * allClusters = dfs(lattice);
 
 	if(DEBUG){
 		printLattice(lattice,false,true);
@@ -77,17 +77,26 @@ int main(int argc, char* argv[]){
 	return 0;
 }
 
-void dfs(Node lattice[][NCOLS]){
+Clusterlist * dfs(Node lattice[][NCOLS]){
+	Clusterlist * clusterlist = newClusterlist();
+
 	for(int i=0; i<NROWS; i++){
 		for(int j=0; j<NCOLS; j++){
 			if(lattice[i][j].seen == 0){
-				searchNode(lattice,i,j,0);	
+				Cluster * cluster = newCluster();
+				searchNode(lattice,i,j,0,cluster);	
+				addClusterToClusterlist(clusterlist, cluster);
+				if(DEBUG)
+					printf("Cluster size: %d\n", cluster->length);
 			}
 		}
+	if(DEBUG)
+		printf("# clusters: %d\n", clusterlist->length);
 	}
+	return clusterlist;
 }
 
-void searchNode(Node lattice[][NCOLS], int row, int col, int depth){
+void searchNode(Node lattice[][NCOLS], int row, int col, int depth, Cluster * cluster){
 	Node currNode = lattice[row][col];
 	if(currNode.seen == 0){
 		if(DEBUG){
@@ -115,28 +124,30 @@ void searchNode(Node lattice[][NCOLS], int row, int col, int depth){
 
 		// check Node and update cluster
 		currNode.seen = true;
+		Clusternode * clusternode = newClusternode(row,col);
+		addNodeToCluster(cluster,clusternode);
 
 		// put checked Node into lattice
 		lattice[row][col] = currNode;
 		if(currNode.south == 1){
 			if(DEBUG)
 				printf(" trigger south\n");
-			searchNode(lattice, nextRow, col, depth);
+			searchNode(lattice, nextRow, col, depth, cluster);
 		}
 		if(currNode.west == 1){
 			if(DEBUG)
 				printf(" trigger west\n");
-			searchNode(lattice, row, prevCol, depth);
+			searchNode(lattice, row, prevCol, depth, cluster);
 		}
 		if(currNode.east == 1){
 			if(DEBUG)
 				printf(" trigger east\n");
-			searchNode(lattice, row, nextCol, depth);
+			searchNode(lattice, row, nextCol, depth, cluster);
 		}
 		if(currNode.north == 1){
 			if(DEBUG)
 				printf(" trigger north\n");
-			searchNode(lattice, prevRow, col, depth);
+			searchNode(lattice, prevRow, col, depth, cluster);
 		}
 	}
 	else
@@ -153,7 +164,7 @@ Clusterlist * newClusterlist(){
 	return newClusterlist;
 }
 
-void addClusterToClusterset(Clusterlist * clusterlist, Cluster * cluster){
+void addClusterToClusterlist(Clusterlist * clusterlist, Cluster * cluster){
 	if(clusterlist->length == 0){
 		clusterlist->head = cluster;
 	}

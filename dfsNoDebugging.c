@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define NCOLS 10
-#define NROWS 10
+#define NCOLS 1024
+#define NROWS 1024
 #define P 0.6
 #define PRECISION 5
 #define DEBUG 0
@@ -64,7 +64,8 @@ int main(int argc, char* argv[]){
 
 	// initialise lattice to all nodes unvisited and print a visualisation
 	unseeLattice(lattice);
-	printLattice(lattice,true,false);
+
+	// printLattice(lattice,true,false);
 
 	Clusterlist * allClusters = dfs(lattice);
 

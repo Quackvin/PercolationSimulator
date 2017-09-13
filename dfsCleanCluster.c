@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 
-#define NCOLS 10
-#define NROWS 10
+#define NCOLS 2048
+#define NROWS 2048
 #define P 0.6
 #define PRECISION 5
 #define DEBUG 0
@@ -31,12 +32,21 @@ typedef struct Cluster{
 	struct Cluster * prev;
 	struct Cluster * next;
 	int length;
+	bool percolatesH;
+	bool percolatesV;
+	int rows[NROWS];
+	int cols[NCOLS];
+	int rowsSeen;
+	int colsSeen;
 }Cluster;
 
 typedef struct Clusterlist{
 	Cluster * head;
 	Cluster * tail;
 	int length;
+	int largestCluster;
+	bool percolatesH;
+	bool percolatesV;
 }Clusterlist;
 
 void randomiseLattice(Node lattice[][NCOLS]);
@@ -54,12 +64,14 @@ Cluster * newCluster();
 void addNodeToCluster(Cluster *, Clusternode *);
 Clusternode * newClusternode(int row, int col);
 void clustersTest(Clusterlist * clusterlist);
-
+bool clustersPercolateH(Clusterlist *);
+bool clustersPercolateV(Clusterlist *);
+int getLargestCluster(Clusterlist *);
 
 int main(int argc, char* argv[]){
 	srand(time(NULL)); 
 
-	Node lattice[NROWS][NCOLS];
+	static Node lattice[NROWS][NCOLS];
 	randomiseLattice(lattice);
 
 	// check generation of bonds is valid
@@ -68,9 +80,13 @@ int main(int argc, char* argv[]){
 
 	// initialise lattice to all nodes unvisited and print a visualisation
 	unseeLattice(lattice);
-	printLattice(lattice,true,false);
+
+	if(DEBUG)
+		printLattice(lattice,true,false);
 
 	Clusterlist * allClusters = dfs(lattice);
+
+	printf("PercH: %d PercV: %d Largest: %d\n", allClusters->percolatesH, allClusters->percolatesV, allClusters->largestCluster);
 
 	if(DEBUG)
 		clustersTest(allClusters);
@@ -120,6 +136,11 @@ Clusterlist * dfs(Node lattice[][NCOLS]){
 			}
 		}
 	}
+
+	clusterlist->percolatesH = clustersPercolateH(clusterlist);
+	clusterlist->percolatesV = clustersPercolateV(clusterlist);
+	clusterlist->largestCluster = getLargestCluster(clusterlist);
+
 	if(DEBUG)
 		printf("# clusters: %d\n", clusterlist->length);
 
@@ -188,11 +209,48 @@ void searchNode(Node lattice[][NCOLS], int row, int col, int depth, Cluster * cl
 			printf("_____skipped\n");
 }
 
+bool clustersPercolateH(Clusterlist * clusters){
+	Cluster * cluster = clusters->head;
+	for(int i=0; i<clusters->length; i++){
+		if(cluster->percolatesH)
+			return true;
+		if(cluster->next != 0)
+			cluster = cluster->next;
+	}
+	return false;
+}
+
+bool clustersPercolateV(Clusterlist * clusters){
+	Cluster * cluster = clusters->head;
+	for(int i=0; i<clusters->length; i++){
+		if(cluster->percolatesV)
+			return true;
+		if(cluster->next != 0)
+			cluster = cluster->next;
+	}
+	return false;
+}
+
+int getLargestCluster(Clusterlist * clusters){
+	Cluster * cluster = clusters->head;
+	int max = 0;
+	for(int i=0; i<clusters->length; i++){
+		if(cluster->length > max)
+			max = cluster->length;
+		if(cluster->next != 0)
+			cluster = cluster->next;
+	}
+	return max;
+}
+
 Clusterlist * newClusterlist(){
 	Clusterlist * newClusterlist = malloc(sizeof(Clusterlist));
 	newClusterlist->head = NULL;
 	newClusterlist->tail = NULL;
 	newClusterlist->length = 0;
+	newClusterlist->largestCluster = 0;
+	newClusterlist->percolatesH = false;
+	newClusterlist->percolatesV = false;
 
 	return newClusterlist;
 }
@@ -211,13 +269,21 @@ void addClusterToClusterlist(Clusterlist * clusterlist, Cluster * cluster){
 
 Cluster * newCluster(){
 	Cluster * newCluster = malloc(sizeof(Cluster));
-	// maybe calloc all these??
-	// shouldn't need to since when a cluster or node is created it creates space for itself
 	newCluster->head = NULL;
 	newCluster->tail = NULL;
 	newCluster->prev = NULL;
 	newCluster->next = NULL;
 	newCluster->length = 0;
+	newCluster->percolatesH = false;
+	newCluster->percolatesV = false;
+	newCluster->rowsSeen = 0;
+	newCluster->colsSeen = 0;
+	for(int i=0; i<fmax(NROWS,NCOLS); i++){
+		if(i<NROWS)
+			newCluster->rows[i] = 0;
+		if(i<NCOLS)
+			newCluster->cols[i] = 0;
+	}
 
 	return newCluster;
 }
@@ -233,6 +299,21 @@ void addNodeToCluster(Cluster * cluster, Clusternode * clusternode){
 	}
 	cluster->tail = clusternode;
 	cluster->length++;
+
+	// mark row and column as seen
+	if(cluster->rows[clusternode->row] == 0){
+		cluster->rows[clusternode->row] = 1;
+		cluster->rowsSeen++;
+	}
+	if(cluster->cols[clusternode->col] == 0){
+		cluster->cols[clusternode->col] = 1;
+		cluster->colsSeen++;
+	}
+
+	if(cluster->rowsSeen == NROWS)
+		cluster->percolatesV = true;
+	if(cluster->colsSeen == NCOLS)
+		cluster->percolatesH = true;
 }
 
 Clusternode * newClusternode(int row, int col){

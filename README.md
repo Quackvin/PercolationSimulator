@@ -1,5 +1,7 @@
 # CITS3402
 High performance computing assignment
 
-## Known Issues
-Clusters causing seg faults
+# Fully Working
+Most Recent Version
+  dfsCleanCluster.c
+

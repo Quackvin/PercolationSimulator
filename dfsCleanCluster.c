@@ -3,9 +3,9 @@
 #include <time.h>
 #include <math.h>
 
-#define NCOLS 2048
-#define NROWS 2048
-#define P 0.6
+#define NCOLS 1024
+#define NROWS 1024
+#define P 0.5
 #define PRECISION 5
 #define DEBUG 0
 
@@ -376,18 +376,22 @@ bool checkLattice(Node lattice[][NCOLS]){
 			if(nextj == NCOLS)
 				nextj = 0;
 
-			if(lattice[i][j].north != lattice[previ][j].south)
+			if(lattice[i][j].north != lattice[previ][j].south){
 				printf("invalid lattice\n");
 				return false;
-			if(lattice[i][j].south != lattice[nexti][j].north)
+			}
+			if(lattice[i][j].south != lattice[nexti][j].north){
 				printf("invalid lattice\n");
 				return false;
-			if(lattice[i][j].west != lattice[i][prevj].east)
+			}
+			if(lattice[i][j].west != lattice[i][prevj].east){
 				printf("invalid lattice\n");
 				return false;
-			if(lattice[i][j].east != lattice[i][nextj].west)
+			}
+			if(lattice[i][j].east != lattice[i][nextj].west){
 				printf("invalid lattice\n");
 				return false;
+			}
 		}
 	}
 	printf("valid lattice\n");

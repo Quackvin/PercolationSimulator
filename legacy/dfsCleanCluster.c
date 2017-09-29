@@ -3,8 +3,8 @@
 #include <time.h>
 #include <math.h>
 
-#define NCOLS 1024
-#define NROWS 1024
+#define NCOLS 10000
+#define NROWS 10000
 #define P 0.5
 #define PRECISION 5
 #define DEBUG 0
@@ -73,6 +73,7 @@ int main(int argc, char* argv[]){
 
 	static Node lattice[NROWS][NCOLS];
 	randomiseLattice(lattice);
+	printf("generated\n");
 
 	// check generation of bonds is valid
 	if(DEBUG)
@@ -83,6 +84,7 @@ int main(int argc, char* argv[]){
 
 	if(DEBUG)
 		printLattice(lattice,true,false);
+	printf("ready for search\n");
 
 	Clusterlist * allClusters = dfs(lattice);
 
@@ -126,7 +128,9 @@ Clusterlist * dfs(Node lattice[][NCOLS]){
 	Clusterlist * clusterlist = newClusterlist();
 
 	for(int i=0; i<NROWS; i++){
+		printf("row: %d\n", i);
 		for(int j=0; j<NCOLS; j++){
+			printf("col: %d\n", j);
 			if(lattice[i][j].seen == 0){
 				Cluster * cluster = newCluster();
 				searchNode(lattice,i,j,0,cluster);	
@@ -150,7 +154,7 @@ Clusterlist * dfs(Node lattice[][NCOLS]){
 void searchNode(Node lattice[][NCOLS], int row, int col, int depth, Cluster * cluster){
 	Node currNode = lattice[row][col];
 	if(currNode.seen == 0){
-		if(DEBUG){
+		if(!DEBUG){
 			printf("\n\n___%d,%d, depth:[%d]\n", row,col,depth);
 		}
 		// define neighbours with wrapping

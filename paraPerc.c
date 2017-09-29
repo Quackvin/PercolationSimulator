@@ -6,8 +6,8 @@
 #include <omp.h>
 #include <math.h>
 
-#define NCOLS 100
-#define NROWS 100
+#define NCOLS 1000
+#define NROWS 1000
 #define PRINT 0
 #define PRECISION 5
 #define NTHREADS 9 // must be square number
@@ -45,10 +45,13 @@ typedef struct SearchStack {
 void seedSite(site_t lattice[NROWS][NCOLS], float P) ;
 void seedBond(site_t lattice[NROWS][NCOLS], float p) ;
 void printLattice(site_t lattice[NROWS][NCOLS], char* perc_type) ;
+// need to make record only node count and boundary node info
 void addNodeToCluster(cluster_t **head, int row, int col) ;
 void searchNode(site_t lattice[NROWS][NCOLS], int row, int col, cluster_t **head, char *perc_type) ;
 bool percolate(cluster_t *head, int perc_dir) ;
+// need to change method of counting clusters to be later
 list_t *dfs(site_t lattice[NROWS][NCOLS], char *perc_type, int perc_dir, int xLower, int xUpper, int yLower, int yUpper) ;
+// need to remove percolation check and do later
 void addClusterToList(list_t **head, cluster_t *cluster, int perc_dir) ;
 void printPerc(list_t *head) ;
 int getLargestCluster(list_t *head) ;
@@ -70,40 +73,26 @@ int main(int argc, char *argv[]) {
 
     start = clock();
 
-    list_t *allClusters;
-
+    list_t *allClusters[NTHREADS];
     omp_set_num_threads(NTHREADS);
-    int tileSize = NCOLS/sqrt(NTHREADS)
+    int tileSize = ceil(NCOLS/sqrt(NTHREADS));
+    // printf("Tile size: %d\n", tileSize);
 #pragma omp parallel
     {
         int xUpper, xLower, yUpper, yLower;
+        xLower = (omp_get_thread_num() % (int)sqrt(NTHREADS)) * tileSize;
+        xUpper = xLower + tileSize;
+        if (xUpper >= NCOLS) xUpper = NCOLS;
         
-        xLower = (omp_get_thread_num() % sqrt(NTHREADS)) * tileSize;
-        if (omp_get_thread_num() % sqrt(NTHREADS) == sqrt(NTHREADS)) xUpper = NCOLS;
-        else xUpper = (((omp_get_thread_num()+1) % sqrt(NTHREADS)) * tileSize) - 1;
-        
-        yLower = floor(omp_get_thread_num() / sqrt(NTHREADS)) * tileSize;
-        if (floor(omp_get_thread_num() / sqrt(NTHREADS)) == sqrt(NTHREADS)) yUpper = NROWS;
-        else xUpper = ((floor(omp_get_thread_num()+1) / sqrt(NTHREADS)) * tileSize) - 1;
+        yLower = floor(omp_get_thread_num() / (int)sqrt(NTHREADS)) * tileSize;
+        yUpper = yLower + tileSize;
+        if (yUpper >= NROWS) yUpper = NROWS;
 
-        list_t *tileClusters = dfs(lattice, argv[1], (int) strtol(argv[3], NULL, 10), xLower, xUpper, yLower, yUpper);
+        // printf("Thread: %d, xmin: %d, xmax: %d, ymin: %d, ymax: %d\n", omp_get_thread_num(), xLower, xUpper, yLower, yUpper);
+        allClusters[omp_get_thread_num()] = dfs(lattice, argv[1], (int) strtol(argv[3], NULL, 10), xLower, xUpper, yLower, yUpper);
     }
 
-    printf("No. of Clusters found: %i\n", clusterCount);
-    if (PRINT) printLattice(lattice, argv[1]);
-
-    printf("Largest cluster: %i.\n", getLargestCluster(allClusters));
-
-    printf("Searching for ");
-    if ((int) strtol(argv[3], NULL, 10) == 0 || (int) strtol(argv[3], NULL, 10) == 2) printf("vertical ");
-    if ((int) strtol(argv[3], NULL, 10) == 2) printf("and ");
-    if ((int) strtol(argv[3], NULL, 10) == 1 || (int) strtol(argv[3], NULL, 10) == 2) printf("horizontal ");
-    printf("percolation:\n");
-    printPerc(allClusters);
-
-    //Cleanup
-    printf("Cleaning up memory before exit.\n");
-    freeList(allClusters);
+    
 
 
     end = clock();

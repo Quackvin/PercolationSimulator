@@ -27,12 +27,13 @@ typedef struct Cluster {
     bool vertP[NROWS];
     bool horzP[NROWS];
     boundary_t *boundaryHead;
+    struct Cluster *next;
 } cluster_t;
 
 typedef struct List {
-    int cluster_size;
+    // remove?
     bool percolates;
-    struct List *next;
+    cluster_t *head;
 } list_t;
 
 typedef struct Site {
@@ -56,15 +57,15 @@ void seedBond(site_t lattice[NROWS][NCOLS], float p) ;
 void printLattice(site_t lattice[NROWS][NCOLS], char* perc_type) ;
 // need to be able to free
 void addBoundary(int row, int col, cluster_t **cluster) ;
-// need to make record only node count and boundary node info
+// changed to record boundary node info
 void addNodeToCluster(cluster_t **head, int row, int col, int bounds[]) ;
-// need to stop at boundary
+// changed to stop at boundary
 void searchNode(site_t lattice[NROWS][NCOLS], int row, int col, cluster_t **head, char *perc_type, int bounds[]) ;
 bool percolate(cluster_t *head, int perc_dir) ;
 // added testing of boundary nodes
 list_t *dfs(site_t lattice[NROWS][NCOLS], char *perc_type, int perc_dir, int bounds[]) ;
-// need to remove percolation check and do later
-void addClusterToList(list_t **head, cluster_t *cluster, int perc_dir) ;
+// changed to only connect clusters together
+void addClusterToList(list_t *list, cluster_t *cluster) ;
 void printPerc(list_t *head) ;
 int getLargestCluster(list_t *head) ;
 void freeList(list_t *head) ;
@@ -72,6 +73,7 @@ bool hasBond(float p) ;
 void push(sstack_t **top, int row, int col) ;
 void pop(sstack_t **top, int *row, int *col) ;
 cluster_t *createCluster(void) ;
+list_t *createList(void) ;
 
 int main(int argc, char *argv[]) {
 
@@ -103,6 +105,10 @@ int main(int argc, char *argv[]) {
 
         int bounds[] = {xLower,xUpper,yLower,yUpper};
         // printf("Thread: %d, xmin: %d, xmax: %d, ymin: %d, ymax: %d\n", omp_get_thread_num(), xLower, xUpper, yLower, yUpper);
+
+        // dfs returns pointer to linked list of clusters, each cluster remembers its own boundary nodes
+        // need to forget clusters that have no boundary nodes
+        // have list_t remember all boundary nodes and which cluster they are in?
         allClusters[omp_get_thread_num()] = dfs(lattice, argv[1], (int) strtol(argv[3], NULL, 10), bounds);
     }
 
@@ -191,7 +197,7 @@ void printLattice(site_t lattice[NROWS][NCOLS], char* perc_type) {
 }
 
 list_t *dfs(site_t lattice[NROWS][NCOLS], char *perc_type, int perc_dir, int bounds[]) {
-    list_t *clusterlist = NULL;
+    list_t *clusterlist = createList();
 
     for (int i = bounds[2]; i < bounds[3]; i++) {
         for (int j = bounds[0]; j < bounds[1]; j++) {
@@ -199,16 +205,17 @@ list_t *dfs(site_t lattice[NROWS][NCOLS], char *perc_type, int perc_dir, int bou
                 clusterCount++;
                 cluster_t *head = createCluster();
                 searchNode(lattice, i, j, &head, perc_type, bounds);
-                addClusterToList(&clusterlist, head, perc_dir);
+                addClusterToList(clusterlist, head);
 
                 // testing
-                boundary_t *readBoundary = head->boundaryHead;
-                while(readBoundary != NULL){
-                    // printf("%d readBoundary: [%d, %d]\n", omp_get_thread_num(), readBoundary->col, readBoundary->row);
-                    readBoundary = readBoundary->next;
-                }
+                // boundary_t *readBoundary = head->boundaryHead;
+                // while(readBoundary != NULL){
+                //     printf("%d readBoundary: [%d, %d]\n", omp_get_thread_num(), readBoundary->col, readBoundary->row);
+                //     readBoundary = readBoundary->next;
+                // }
 
-                free(head);
+                // need to do later
+                // free(head);
             }
         }
     }
@@ -279,6 +286,15 @@ cluster_t *createCluster(void) {
     return new_cluster;
 }
 
+list_t *createList(void){
+    list_t *newList = malloc(sizeof(list_t));
+    if (newList == NULL) exit(EXIT_FAILURE);
+    newList->percolates = false;
+    newList->head = NULL;
+
+    return newList;
+}
+
 void addBoundary(int row, int col, cluster_t **cluster){
     boundary_t *newBoundary = malloc(sizeof(boundary_t));
     if (newBoundary == NULL) exit(EXIT_FAILURE);
@@ -298,71 +314,69 @@ void addNodeToCluster(cluster_t **head, int row, int col, int bounds[]) {
     }
 }
 
-void addClusterToList(list_t **head, cluster_t *cluster, int perc_dir) {
-    list_t *new_cluster = malloc(sizeof(list_t));
-    if (new_cluster == NULL) exit(EXIT_FAILURE);
-    new_cluster->cluster_size = cluster->node_count;
-    new_cluster->percolates = percolate(cluster, perc_dir);
-    new_cluster->next = *head;
-    *head = new_cluster;
+void addClusterToList(list_t *list, cluster_t *cluster) {
+    // add cluster to cluster linked list
+    cluster->next = list->head;
+    list->head = cluster;
 }
 
-bool percolate(cluster_t *head, int perc_dir) {
-    bool percsV = false;
-    bool percsH = false;
+// All Need to be adapted :)
+// bool percolate(cluster_t *head, int perc_dir) {
+//     bool percsV = false;
+//     bool percsH = false;
 
-    if (perc_dir == 0 || perc_dir == 2) { //vertical percolation
-        for (int i = 0; i < NROWS; i++) {
-            if (!head->vertP[i]) return false;
-        }
-        percsV = true;
-    }
+//     if (perc_dir == 0 || perc_dir == 2) { //vertical percolation
+//         for (int i = 0; i < NROWS; i++) {
+//             if (!head->vertP[i]) return false;
+//         }
+//         percsV = true;
+//     }
 
-    if (perc_dir == 1 || perc_dir == 2) { //vertical percolation
-        for (int i = 0; i < NCOLS; i++) {
-            if (!head->horzP[i]) return false;
-        }
-        percsH = true;
-    }
-    if (perc_dir == 0) return (percsV);
-    if (perc_dir == 1) return (percsH);
-    if (perc_dir == 2) return (percsV && percsH);
-    return false;
-}
+//     if (perc_dir == 1 || perc_dir == 2) { //vertical percolation
+//         for (int i = 0; i < NCOLS; i++) {
+//             if (!head->horzP[i]) return false;
+//         }
+//         percsH = true;
+//     }
+//     if (perc_dir == 0) return (percsV);
+//     if (perc_dir == 1) return (percsH);
+//     if (perc_dir == 2) return (percsV && percsH);
+//     return false;
+// }
 
-void printPerc(list_t *head) {
-    list_t *current = head;
+// void printPerc(list_t *head) {
+//     list_t *current = head;
 
-    while (current != NULL) {
-        if (current->percolates) {
-            printf("Percolation path found.\n");
-            return;
-        }
-        current = current->next;
-    }
-    printf("None found.\n");
-}
+//     while (current != NULL) {
+//         if (current->percolates) {
+//             printf("Percolation path found.\n");
+//             return;
+//         }
+//         current = current->next;
+//     }
+//     printf("None found.\n");
+// }
 
-int getLargestCluster(list_t *head) {
-    list_t *current = head;
-    int max = 0;
+// int getLargestCluster(list_t *head) {
+//     list_t *current = head;
+//     int max = 0;
 
-    while (current != NULL) {
-        if (current->cluster_size > max) max = current->cluster_size;
-        current = current->next;
-    }
-    return max;
-}
+//     while (current != NULL) {
+//         if (current->cluster_size > max) max = current->cluster_size;
+//         current = current->next;
+//     }
+//     return max;
+// }
 
-void freeList(list_t *head) {
-    list_t *tmp;
+// void freeList(list_t *head) {
+//     list_t *tmp;
 
-    while (head != NULL) {
-        tmp = head;
-        head = head->next;
-        free(tmp);
-    }
-}
+//     while (head != NULL) {
+//         tmp = head;
+//         head = head->next;
+//         free(tmp);
+//     }
+// }
 
 void push(sstack_t **top, int row, int col) {
     sstack_t *new_element = malloc(sizeof(sstack_t));

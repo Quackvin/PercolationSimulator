@@ -10,21 +10,23 @@
 #define NROWS 5
 #define PRINT 0
 #define PRECISION 5
-#define SQRTNTHREADS 2 // sqrt of number of threads
-#define TILESIZE (NCOLS%SQRTNTHREADS != 0 ? (int)(NCOLS/SQRTNTHREADS)+1 : (int)NCOLS/SQRTNTHREADS)
+#define NTHREADS 4 // must be square number
 
-int clusterCount = 0, largestClusterSize = 0;
+int clusterCount = 0;
+
+// added
+typedef struct BoundaryNodeLL {
+    int row;
+    int col;
+    struct BoundaryNodeLL *next;
+} boundary_t;
 
 // changed
 typedef struct Cluster {
     int node_count;
-    bool hasBound;
-    bool vertP[TILESIZE];
-    bool horzP[TILESIZE];
-    bool boundsU[TILESIZE];
-    bool boundsD[TILESIZE];
-    bool boundsL[TILESIZE];
-    bool boundsR[TILESIZE];
+    bool vertP[NROWS];
+    bool horzP[NROWS];
+    boundary_t *boundaryHead;
     struct Cluster *next;
 } cluster_t;
 
@@ -54,7 +56,7 @@ void seedSite(site_t lattice[NROWS][NCOLS], float P) ;
 void seedBond(site_t lattice[NROWS][NCOLS], float p) ;
 void printLattice(site_t lattice[NROWS][NCOLS], char* perc_type) ;
 // need to be able to free
-void addBoundary(int row, int col, cluster_t **cluster, int bounds[]) ;
+void addBoundary(int row, int col, cluster_t **cluster) ;
 // changed to record boundary node info
 void addNodeToCluster(cluster_t **head, int row, int col, int bounds[]) ;
 // changed to stop at boundary
@@ -86,26 +88,28 @@ int main(int argc, char *argv[]) {
 
     start = clock();
 
-    list_t *allClusters[SQRTNTHREADS][SQRTNTHREADS];
-    omp_set_num_threads(pow(SQRTNTHREADS,2));
-    printf("Tile size: %d\n", TILESIZE);
+    list_t *allClusters[NTHREADS];
+    omp_set_num_threads(NTHREADS);
+    int tileSize = ceil(NCOLS/sqrt(NTHREADS));
+    // printf("Tile size: %d\n", tileSize);
 #pragma omp parallel
     {
         int xUpper, xLower, yUpper, yLower;
-        xLower = (omp_get_thread_num() % SQRTNTHREADS) * TILESIZE;
-        xUpper = xLower + TILESIZE;
+        xLower = (omp_get_thread_num() % (int)sqrt(NTHREADS)) * tileSize;
+        xUpper = xLower + tileSize;
         if (xUpper >= NCOLS) xUpper = NCOLS;
         
-        yLower = floor(omp_get_thread_num() / SQRTNTHREADS) * TILESIZE;
-        yUpper = yLower + TILESIZE;
+        yLower = floor(omp_get_thread_num() / (int)sqrt(NTHREADS)) * tileSize;
+        yUpper = yLower + tileSize;
         if (yUpper >= NROWS) yUpper = NROWS;
 
         int bounds[] = {xLower,xUpper,yLower,yUpper};
-        printf("Thread: %d, xmin: %d, xmax: %d, ymin: %d, ymax: %d\n", omp_get_thread_num(), xLower, xUpper, yLower, yUpper);
+        // printf("Thread: %d, xmin: %d, xmax: %d, ymin: %d, ymax: %d\n", omp_get_thread_num(), xLower, xUpper, yLower, yUpper);
 
         // dfs returns pointer to linked list of clusters, each cluster remembers its own boundary nodes
+        // need to forget clusters that have no boundary nodes
         // have list_t remember all boundary nodes and which cluster they are in?
-        allClusters[(int)floor(omp_get_thread_num() / SQRTNTHREADS)][omp_get_thread_num()%SQRTNTHREADS] = dfs(lattice, argv[1], (int) strtol(argv[3], NULL, 10), bounds);
+        allClusters[omp_get_thread_num()] = dfs(lattice, argv[1], (int) strtol(argv[3], NULL, 10), bounds);
     }
 
     
@@ -202,7 +206,7 @@ list_t *dfs(site_t lattice[NROWS][NCOLS], char *perc_type, int perc_dir, int bou
                 cluster_t *head = createCluster();
                 searchNode(lattice, i, j, &head, perc_type, bounds);
 
-                if(head->hasBound == true) addClusterToList(clusterlist, head);
+                if(head->boundaryHead != NULL) addClusterToList(clusterlist, head);
                 else free(head); // free clusters without boundary nodes
 
                 // need to do later
@@ -214,9 +218,13 @@ list_t *dfs(site_t lattice[NROWS][NCOLS], char *perc_type, int perc_dir, int bou
     // cluster_t *readCluster = clusterlist->head;
     // int numCluster = 0;
     // while(readCluster != NULL){
-    //    for(int i=0; i<TILESIZE; i++){
-    //         printf("Thead %d ClusterNum %d i %d [%s]\n", omp_get_thread_num(), numCluster, i, readCluster->boundsR[i] == true ? "true" : readCluster->boundsR[i] == false ? "false" : "undefined");
-    //    }
+    //     boundary_t *readBoundary = readCluster->boundaryHead;
+    //     int numNode = 0;
+    //     while(readBoundary!=NULL){
+    //         printf("Thread %d [%d %d] ClusterNum %d NodeNum %d\n", omp_get_thread_num(), readBoundary->col, readBoundary->row, numCluster, numNode);
+    //         numNode ++;
+    //         readBoundary = readBoundary->next;
+    //     }
     //     numCluster ++;
     //     readCluster = readCluster->next;
     // }
@@ -275,23 +283,15 @@ void searchNode(site_t lattice[NROWS][NCOLS], int row, int col, cluster_t **head
             }
         }
     }
-    // allows islands to be largest cluster
-    if((*head)->node_count > largestClusterSize) largestClusterSize = (*head)->node_count;
 }
+
 
 cluster_t *createCluster(void) {
     cluster_t *new_cluster = NULL;
     new_cluster = malloc(sizeof(cluster_t));
     if (new_cluster == NULL) exit(EXIT_FAILURE);
     new_cluster->node_count = 0;
-    new_cluster->hasBound = false;
-    //initialise bounds
-    for(int i=0; i<TILESIZE; i++){
-        new_cluster->boundsU[i] = false;
-        new_cluster->boundsD[i] = false;
-        new_cluster->boundsL[i] = false;
-        new_cluster->boundsR[i] = false;
-    }
+    new_cluster->boundaryHead = NULL;
     return new_cluster;
 }
 
@@ -304,30 +304,23 @@ list_t *createList(void){
     return newList;
 }
 
-void addBoundary(int row, int col, cluster_t **cluster, int bounds[]){
-    if(col == bounds[0]){
-        (*cluster)->boundsL[row%TILESIZE] = true;
-        (*cluster)->hasBound = true;
-    }
-    if(col == bounds[1]-1){
-        (*cluster)->boundsR[row%TILESIZE] = true;
-        (*cluster)->hasBound = true;
-    }
-    if(row == bounds[2]){
-        (*cluster)->boundsU[col%TILESIZE] = true;
-        (*cluster)->hasBound = true;
-    }
-    if(row == bounds[3]-1){
-        (*cluster)->boundsD[col%TILESIZE] = true;
-        (*cluster)->hasBound = true;
-    }
+void addBoundary(int row, int col, cluster_t **cluster){
+    boundary_t *newBoundary = malloc(sizeof(boundary_t));
+    if (newBoundary == NULL) exit(EXIT_FAILURE);
+    newBoundary->row = row;
+    newBoundary->col = col;
+    newBoundary->next = (*cluster)->boundaryHead;
+    (*cluster)->boundaryHead = newBoundary;
 }
 
 void addNodeToCluster(cluster_t **head, int row, int col, int bounds[]) {
     (*head)->node_count++;
-    (*head)->vertP[row%TILESIZE] = true;
-    (*head)->horzP[col%TILESIZE] = true;
-    addBoundary(row,col,head, bounds);
+    (*head)->vertP[row] = true;
+    (*head)->horzP[col] = true;
+    // add to boundary list
+    if(col == bounds[0] || col == bounds[1]-1 || row == bounds[2] || row == bounds[3]-1){
+        addBoundary(row,col,head);
+    }
 }
 
 void addClusterToList(list_t *list, cluster_t *cluster) {

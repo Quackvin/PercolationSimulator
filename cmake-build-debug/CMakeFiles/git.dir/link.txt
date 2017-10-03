@@ -1,0 +1,1 @@
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/cc -g -Wl,-search_paths_first -Wl,-headerpad_max_install_names  CMakeFiles/git.dir/flexiParaPerc.c.o CMakeFiles/git.dir/paraPerc.c.o CMakeFiles/git.dir/perc.c.o  -o git 

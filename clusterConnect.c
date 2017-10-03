@@ -22,7 +22,7 @@ struct ClusterData{
 
 struct ClusterStack{
 	cluster_t *cluster;
-	cstack_t next;
+	cstack_t *next;
 } ;
 
 struct Cluster {
@@ -85,7 +85,7 @@ clusterData_t *joinClusters(cluster_t *head, char *percType, int percDir){
 			newData->percV[i] = false;
 			newData->percH[i] = false;
 		}
-		
+
 		// add to stack
 		pushCStack(*clusterStack, clustersInOrder);
 		while(clusterStack != NULL){
@@ -115,8 +115,11 @@ clusterData_t *joinClusters(cluster_t *head, char *percType, int percDir){
 			}
 
 			// one cluster now completely connected
+
 		}
+		//free clusterinorder
 		clustersInOrder = clustersInOrder->next;
+
 	}
 
 	return newData;
